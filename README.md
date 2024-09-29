@@ -54,7 +54,7 @@ index: Index of the phase to find.
 Purpose: Performs a health check to validate the internal structure and time calculations of the curve.
 
 # Example
-## Old example:
+### Old example:
 from firing_curves.py import firingCurve 
 
 fc = firingCurve(roomTemp=20)  
@@ -63,7 +63,8 @@ fc.changePhaseVelocity(0, 120)
 fc.changePhaseHoldingTime(0, 20)  
 fc.changePhaseEndTemp(0, 550)  
 fc.removePhase(0)  
-## New example:
+
+### New example:
 The code now lets the user input information about the curve they want to make and the program take if from there based on data in the json-file.
  
 ### Development
