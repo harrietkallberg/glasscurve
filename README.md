@@ -65,7 +65,8 @@ fc.changePhaseEndTemp(0, 550)
 fc.removePhase(0)  
 
 ### New example:
-The code now lets the user input information about the curve they want to make and the program take if from there based on data in the json-file.
+The code now lets the user input information about the glass, oven and other parameters relevant to the firing curve. 
+The code takes if from there based on data in the json-file.
  
 ### Development
 Modify and expand the module by editing the Python script. Ensure that any changes maintain the integrity of the firing curve's linked list structure.
