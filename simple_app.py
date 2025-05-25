@@ -1,11 +1,14 @@
 # simple_app.py
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for web
 import matplotlib.pyplot as plt
 import io
 import base64
-from firing_curve import GlassTypeHandler
+import numpy as np
+
+# Import your existing classes
+from firing_curve import GlassTypeHandler, firingCurve
 
 app = Flask(__name__)
 
@@ -20,20 +23,19 @@ def home():
 
 @app.route('/create_curve', methods=['POST'])
 def create_curve():
-    # Get form data
-    glass_choice = int(request.form['glass_choice'])
-    oven_type = request.form['oven_type']
-    radius = int(request.form['radius'])
-    layers = int(request.form['layers'])
-    minutes = int(request.form['minutes'])
-    room_temp = int(request.form['room_temp'])
-    firing_type = request.form['firing_type']
-    
-    # Get the selected glass info
-    glass_info = glass_handler.glass_data["Glassorter"][glass_choice - 1]
-    
-    # Use your existing logic to create the curve
     try:
+        # Get form data
+        glass_choice = int(request.form['glass_choice'])
+        oven_type = request.form['oven_type']
+        radius = int(request.form['radius'])
+        layers = int(request.form['layers'])
+        minutes = int(request.form['minutes'])
+        room_temp = int(request.form['room_temp'])
+        firing_type = request.form['firing_type']
+        
+        # Get the selected glass info
+        glass_info = glass_handler.glass_data["Glassorter"][glass_choice - 1]
+        
         # Extract the tables (same as your existing code)
         uppvarmning_table = next(
             item["tabell"] for item in glass_handler.glass_data["Tider for uppvarmning"]
@@ -97,13 +99,10 @@ def create_curve():
                              })
     
     except Exception as e:
-        return f"Ett fel uppstod: {str(e)}", 400
+        return f"Ett fel uppstod: {str(e)}", 500
 
 def create_firing_curve(glass_info, uppvarmning_time, halltider_time, avspanning_time, topptemp, minutes, room_temp):
     """Create firing curve - adapted from your existing code"""
-    import numpy as np
-    from firing_curve import firingCurve
-    
     o_astemp = glass_info["o_astemp"]
     n_astemp = glass_info["n_astemp"]
     inledande_smaltpunkt = glass_handler.glass_data["Inledande_smaltpunkt"]
