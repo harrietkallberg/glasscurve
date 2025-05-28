@@ -8,8 +8,19 @@ import matplotlib.pyplot as plt
 from firing_curve import GlassTypeHandler, firingCurve
 import matplotlib.colors as mcolors
 import numpy as np
+import json
 
 app = Flask(__name__)
+
+def ensure_serializable(value):
+    """Convert numpy types to native Python types for JSON serialization"""
+    if isinstance(value, (np.integer, np.int64, np.int32)):
+        return int(value)
+    elif isinstance(value, (np.floating, np.float64, np.float32)):
+        return float(value)
+    elif isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
 
 @app.route('/')
 def index():
@@ -17,45 +28,333 @@ def index():
     try:
         return render_template('index.html')
     except Exception as e:
-        # If template doesn't exist, return a simple HTML page
+        # If template doesn't exist, return a comprehensive HTML page
         return '''
         <!DOCTYPE html>
         <html>
         <head>
             <title>Glass Firing Curve Generator</title>
+            <meta charset="UTF-8">
             <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                button { padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-                button:hover { background: #0056b3; }
-                #result { margin-top: 20px; }
-                img { max-width: 100%; border: 1px solid #ddd; margin: 10px 0; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    background-color: #f5f5f5;
+                    line-height: 1.6;
+                }
+                .container {
+                    max-width: 800px;
+                    margin: 0 auto;
+                    background: white;
+                    padding: 30px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                h1 { 
+                    color: #333; 
+                    text-align: center;
+                    margin-bottom: 10px;
+                }
+                .subtitle {
+                    text-align: center;
+                    color: #666;
+                    margin-bottom: 30px;
+                    font-style: italic;
+                }
+                .form-group {
+                    margin-bottom: 20px;
+                }
+                label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                    color: #333;
+                }
+                select, input {
+                    width: 100%;
+                    padding: 10px;
+                    border: 2px solid #ddd;
+                    border-radius: 5px;
+                    font-size: 16px;
+                    box-sizing: border-box;
+                }
+                select:focus, input:focus {
+                    border-color: #007bff;
+                    outline: none;
+                }
+                button {
+                    width: 100%;
+                    padding: 15px;
+                    font-size: 18px;
+                    background: #007bff;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin-top: 20px;
+                }
+                button:hover {
+                    background: #0056b3;
+                }
+                button:disabled {
+                    background: #ccc;
+                    cursor: not-allowed;
+                }
+                #result {
+                    margin-top: 30px;
+                }
+                img {
+                    max-width: 100%;
+                    border: 1px solid #ddd;
+                    margin: 20px 0;
+                    border-radius: 5px;
+                }
+                .loading {
+                    text-align: center;
+                    color: #007bff;
+                    font-size: 18px;
+                }
+                .error {
+                    color: #dc3545;
+                    background: #f8d7da;
+                    padding: 15px;
+                    border-radius: 5px;
+                    border: 1px solid #f5c6cb;
+                }
+                .success {
+                    color: #155724;
+                    background: #d4edda;
+                    padding: 15px;
+                    border-radius: 5px;
+                    border: 1px solid #c3e6cb;
+                    margin-bottom: 20px;
+                }
+                .phase-info {
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 15px 0;
+                    border-left: 4px solid #007bff;
+                }
+                .phase-info h3 {
+                    margin-top: 0;
+                    color: #007bff;
+                }
+                .parameter-info {
+                    background: #e9ecef;
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                }
+                .hidden {
+                    display: none;
+                }
             </style>
         </head>
         <body>
-            <h1>🔥 Glass Firing Curve Generator</h1>
-            <p>Verktyg för Dalarnas Glasverkstad</p>
-            
-            <button onclick="createCurve()">Skapa Brännkurva</button>
-            
-            <div id="result"></div>
+            <div class="container">
+                <h1>🔥 Glass Firing Curve Generator</h1>
+                <p class="subtitle">Verktyg för Dalarnas Glasverkstad</p>
+                
+                <form id="curveForm">
+                    <div class="form-group">
+                        <label for="glassType">Vilken typ av glas ska du bränna?</label>
+                        <select id="glassType" name="glassType" required>
+                            <option value="">Välj glastyp...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ovenType">Vilken typ av ugn har du?</label>
+                        <select id="ovenType" name="ovenType" required>
+                            <option value="">Välj ugnstyp...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="radius">Vilken är din största radie? (5, 10, 20, 30, 40, 50, 60)</label>
+                        <select id="radius" name="radius" required>
+                            <option value="">Välj radie...</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="30">30</option>
+                            <option value="40">40</option>
+                            <option value="50">50</option>
+                            <option value="60">60</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="layers">Hur många lager har du som mest? (1-5)</label>
+                        <select id="layers" name="layers" required>
+                            <option value="">Välj antal lager...</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="minutes">Hur många minuter vill du stanna på topptemperatur? (1-15)</label>
+                        <select id="minutes" name="minutes" required>
+                            <option value="">Välj minuter...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="roomTemp">Vilken rumstemperatur har du i din verkstad? (10-30°C)</label>
+                        <select id="roomTemp" name="roomTemp" required>
+                            <option value="">Välj rumstemperatur...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="firingType">Vilken bränning vill du ha?</label>
+                        <select id="firingType" name="firingType" required>
+                            <option value="">Välj bränningstyp...</option>
+                            <option value="f">Fullfusing</option>
+                            <option value="s">Slumping</option>
+                            <option value="t">Tackfusing</option>
+                        </select>
+                    </div>
+
+                    <button type="submit">Skapa Brännkurva</button>
+                </form>
+                
+                <div id="result"></div>
+            </div>
 
             <script>
-                function createCurve() {
-                    document.getElementById('result').innerHTML = '<p>Skapar brännkurva...</p>';
-                    
-                    fetch('/api/create-curve', {method: 'POST'})
+                let glassData = {};
+
+                // Load glass types when page loads
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadGlassTypes();
+                    populateSelectOptions();
+                });
+
+                function populateSelectOptions() {
+                    // Populate minutes (1-15)
+                    const minutesSelect = document.getElementById('minutes');
+                    for (let i = 1; i <= 15; i++) {
+                        minutesSelect.innerHTML += `<option value="${i}">${i}</option>`;
+                    }
+
+                    // Populate room temperature (10-30)
+                    const roomTempSelect = document.getElementById('roomTemp');
+                    for (let i = 10; i <= 30; i++) {
+                        roomTempSelect.innerHTML += `<option value="${i}">${i}°C</option>`;
+                    }
+                }
+
+                function loadGlassTypes() {
+                    fetch('/api/glass-types')
                     .then(response => response.json())
                     .then(data => {
-                        if(data.success) {
-                            document.getElementById('result').innerHTML = 
-                                '<h2>✅ Brännkurva Skapad!</h2><img src="data:image/png;base64,' + data.plot + '">';
+                        if (data.success) {
+                            glassData = data.glass_data;
+                            const select = document.getElementById('glassType');
+                            data.glass_types.forEach((glass, index) => {
+                                select.innerHTML += `<option value="${index}">${glass.namn}</option>`;
+                            });
                         } else {
-                            document.getElementById('result').innerHTML = '<p style="color:red;">❌ Fel: ' + data.error + '</p>';
+                            console.error('Failed to load glass types:', data.error);
                         }
                     })
                     .catch(error => {
-                        document.getElementById('result').innerHTML = '<p style="color:red;">❌ Fel: ' + error.message + '</p>';
+                        console.error('Error loading glass types:', error);
                     });
+                }
+
+                // Update oven type options based on selected glass
+                document.getElementById('glassType').addEventListener('change', function() {
+                    const glassIndex = this.value;
+                    const ovenSelect = document.getElementById('ovenType');
+                    ovenSelect.innerHTML = '<option value="">Välj ugnstyp...</option>';
+
+                    if (glassIndex !== '' && glassData.glass_types) {
+                        const selectedGlass = glassData.glass_types[glassIndex];
+                        
+                        if (selectedGlass.kategori === 'floatglas') {
+                            ovenSelect.innerHTML += '<option value="t">Toppvärmd</option>';
+                        } else if (selectedGlass.kategori === 'COE-90/COE-96-glas') {
+                            ovenSelect.innerHTML += '<option value="t">Toppvärmd</option>';
+                            ovenSelect.innerHTML += '<option value="s">Sidovärmd</option>';
+                        }
+                    }
+                });
+
+                document.getElementById('curveForm').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(this);
+                    const data = {};
+                    for (let [key, value] of formData.entries()) {
+                        data[key] = value;
+                    }
+
+                    document.getElementById('result').innerHTML = '<p class="loading">🔄 Skapar brännkurva...</p>';
+                    
+                    fetch('/api/create-curve', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            displayResults(data);
+                        } else {
+                            document.getElementById('result').innerHTML = 
+                                `<div class="error">❌ Fel: ${data.error}</div>`;
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('result').innerHTML = 
+                            `<div class="error">❌ Fel: ${error.message}</div>`;
+                    });
+                });
+
+                function displayResults(data) {
+                    let phasesHtml = '';
+                    data.phases.forEach(phase => {
+                        phasesHtml += `
+                            <div class="phase-info">
+                                <h3>Fas ${phase.phase}</h3>
+                                <p><strong>Start Temperatur:</strong> ${phase.start_temp}°C</p>
+                                <p><strong>Slut Temperatur:</strong> ${phase.end_temp}°C</p>
+                                <p><strong>Hastighet:</strong> ${phase.velocity}°C/h</p>
+                                <p><strong>Hålltid:</strong> ${phase.holding_time} minuter</p>
+                                <p><strong>Fasens tid:</strong> ${phase.time} minuter</p>
+                            </div>
+                        `;
+                    });
+
+                    const parametersHtml = `
+                        <div class="parameter-info">
+                            <strong>Parametrar:</strong><br>
+                            Glastyp: ${data.glass_type}<br>
+                            Bränningstyp: ${data.firing_type}<br>
+                            Ugnstyp: ${data.parameters.oven_type}<br>
+                            Radie: ${data.parameters.radius}<br>
+                            Lager: ${data.parameters.layers}<br>
+                            Minuter på topptemperatur: ${data.parameters.minutes}<br>
+                            Rumstemperatur: ${data.parameters.room_temp}°C
+                        </div>
+                    `;
+
+                    document.getElementById('result').innerHTML = `
+                        <div class="success">✅ Brännkurva skapad framgångsrikt!</div>
+                        ${parametersHtml}
+                        <img src="data:image/png;base64,${data.plot}" alt="Brännkurva">
+                        <h3>Total tid för programmet: ${data.total_time}</h3>
+                        ${phasesHtml}
+                    `;
                 }
             </script>
         </body>
@@ -68,42 +367,36 @@ def get_glass_types():
     try:
         handler = GlassTypeHandler('tables.json')
         glass_types = handler.glass_data["Glassorter"]
-        return jsonify({'success': True, 'glass_types': glass_types})
+        return jsonify({
+            'success': True, 
+            'glass_types': glass_types,
+            'glass_data': handler.glass_data
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-def ensure_serializable(value):
-    """Convert numpy types to native Python types for JSON serialization"""
-    if isinstance(value, (np.integer, np.int64, np.int32)):
-        return int(value)
-    elif isinstance(value, (np.floating, np.float64, np.float32)):
-        return float(value)
-    elif isinstance(value, np.ndarray):
-        return value.tolist()
-    return value
-
 @app.route('/api/create-curve', methods=['POST'])
 def create_firing_curve():
-    """Create firing curve with default parameters (simplified for web)"""
+    """Create firing curve based on user input"""
     try:
-        # Create a simplified version that doesn't require user input
-        # We'll use default parameters for Bullseye 90 glass
+        # Get user input from request
+        data = request.get_json()
         
-        # Load glass data directly
-        import json
+        # Load glass data
         with open('tables.json', 'r', encoding='utf-8') as file:
             glass_data = json.load(file)
         
-        # Use default parameters (you can modify these or add form inputs later)
-        glass_info = glass_data["Glassorter"][0]  # Bullseye 90
-        oven_type = 't'  # toppvärmd
-        radius = 20
-        layers = 2
-        minutes = 5
-        room_temp = 20
-        firing_type = 'f'  # fullfusing
+        # Parse user input
+        glass_index = int(data['glassType'])
+        glass_info = glass_data["Glassorter"][glass_index]
+        oven_type = data['ovenType']
+        radius = int(data['radius'])
+        layers = int(data['layers'])
+        minutes = int(data['minutes'])
+        room_temp = int(data['roomTemp'])
+        firing_type = data['firingType']
         
-        # Calculate temperatures
+        # Calculate temperatures based on firing type
         if firing_type == "f":
             topptemp = round((glass_info.get("f_topptemp")[0] + glass_info.get("f_topptemp")[1]) / 2)
         elif firing_type == "s":
@@ -111,7 +404,7 @@ def create_firing_curve():
         elif firing_type == "t":
             topptemp = glass_info.get("t_topptemp")
         
-        # Get timing tables
+        # Get timing tables based on glass category and oven type
         uppvarmning_table = next(
             item["tabell"] for item in glass_data["Tider for uppvarmning"]
             if item["kategori"] == glass_info["kategori"] and item["ugn"] == oven_type
@@ -143,13 +436,14 @@ def create_firing_curve():
         n_astemp = glass_info.get("n_astemp")
         inledande_smaltpunkt = glass_data["Inledande_smaltpunkt"]
         
-        # Convert numpy calculations to regular Python integers
+        # Calculate velocities
         first_heating_velocity = int(999 if np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time) >= 999 else np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time))
         second_heating_velocity = int(999)
         first_cooling_velocity = int(np.trunc(60*(o_astemp - topptemp)/halltider_time))
         second_cooling_velocity = int(np.trunc(60*(n_astemp - o_astemp)/avspanning_time))
         last_cooling_velocity = int(-20)
         
+        # Create the firing curve
         curve = firingCurve(room_temp)
         curve.newPhase(first_heating_velocity, inledande_smaltpunkt)
         curve.newPhase(second_heating_velocity, topptemp, minutes)
@@ -162,6 +456,7 @@ def create_firing_curve():
         current_temp = curve._roomTemp
         
         plt.figure(figsize=(12, 8))
+        plt.style.use('default')  # Ensure clean styling
         
         # Create a colormap
         cmap = plt.get_cmap('tab20')
@@ -199,14 +494,22 @@ def create_firing_curve():
             
             # Plot this phase
             plt.plot(time_points, temp_points, marker='o', color=phase._color, 
-                    linewidth=2, markersize=6, label=f'Fas {idx+1}')
+                    linewidth=3, markersize=8, label=f'Fas {idx+1}')
             
             # Update current temperature
             current_temp = phase._endTemp
         
-        plt.title(f'Brännkurva för {glass_info["namn"]} - {firing_type.upper()}', fontsize=16, fontweight='bold')
-        plt.xlabel('Tid (minuter)', fontsize=12)
-        plt.ylabel('Temperatur (°C)', fontsize=12)
+        # Format the firing type for display
+        firing_type_display = {
+            'f': 'Fullfusing',
+            's': 'Slumping', 
+            't': 'Tackfusing'
+        }
+        
+        plt.title(f'Brännkurva för {glass_info["namn"]} - {firing_type_display[firing_type]}', 
+                 fontsize=16, fontweight='bold', pad=20)
+        plt.xlabel('Tid (minuter)', fontsize=14)
+        plt.ylabel('Temperatur (°C)', fontsize=14)
         plt.grid(True, alpha=0.3)
         plt.legend(title='Faser', bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
@@ -245,13 +548,13 @@ def create_firing_curve():
             'phases': phases,
             'total_time': curve.getTotalTime(),
             'glass_type': glass_info["namn"],
-            'firing_type': firing_type,
+            'firing_type': firing_type_display[firing_type],
             'parameters': {
                 'radius': ensure_serializable(radius),
                 'layers': ensure_serializable(layers),
                 'minutes': ensure_serializable(minutes),
                 'room_temp': ensure_serializable(room_temp),
-                'oven_type': 'toppvärmd' if oven_type == 't' else 'sidovärmd'
+                'oven_type': 'Toppvärmd' if oven_type == 't' else 'Sidovärmd'
             }
         })
         
