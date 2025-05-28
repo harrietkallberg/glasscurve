@@ -133,11 +133,11 @@ def create_firing_curve():
         inledande_smaltpunkt = glass_data["Inledande_smaltpunkt"]
         
         import numpy as np
-        first_heating_velocity = 999 if np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time) >= 999 else np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time)
-        second_heating_velocity = 999
-        first_cooling_velocity = np.trunc(60*(o_astemp - topptemp)/halltider_time)
-        second_cooling_velocity = np.trunc(60*(n_astemp - o_astemp)/avspanning_time)
-        last_cooling_velocity = -20
+        first_heating_velocity = int(999 if np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time) >= 999 else np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time))
+        second_heating_velocity = int(999)
+        first_cooling_velocity = int(np.trunc(60*(o_astemp - topptemp)/halltider_time))
+        second_cooling_velocity = int(np.trunc(60*(n_astemp - o_astemp)/avspanning_time))
+        last_cooling_velocity = int(-20)
         
         curve = firingCurve(room_temp)
         curve.newPhase(first_heating_velocity, inledande_smaltpunkt)
@@ -220,11 +220,11 @@ def create_firing_curve():
             
             phases.append({
                 'phase': i + 1,
-                'start_temp': phase._startTemp,
-                'end_temp': phase._endTemp,
-                'velocity': phase._velocity,
-                'holding_time': phase._holdingTime,
-                'time': phase._time,
+                'start_temp': int(phase._startTemp),
+                'end_temp': int(phase._endTemp),
+                'velocity': int(phase._velocity),
+                'holding_time': int(phase._holdingTime),
+                'time': int(phase._time),
                 'color': color_hex
             })
         
