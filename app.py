@@ -78,9 +78,10 @@ def create_firing_curve():
         # Create a simplified version that doesn't require user input
         # We'll use default parameters for Bullseye 90 glass
         
-        # Load glass data
-        handler = GlassTypeHandler('tables.json')
-        glass_data = handler.glass_data
+        # Load glass data directly
+        import json
+        with open('tables.json', 'r', encoding='utf-8') as file:
+            glass_data = json.load(file)
         
         # Use default parameters (you can modify these or add form inputs later)
         glass_info = glass_data["Glassorter"][0]  # Bullseye 90
@@ -244,7 +245,8 @@ def create_firing_curve():
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        import traceback
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()})
 
 @app.route('/health')
 def health_check():
