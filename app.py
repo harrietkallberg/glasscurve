@@ -7,6 +7,7 @@ matplotlib.use('Agg')  # Use non-interactive backend for Railway
 import matplotlib.pyplot as plt
 from firing_curve import GlassTypeHandler, firingCurve
 import matplotlib.colors as mcolors
+import numpy as np
 
 app = Flask(__name__)
 
@@ -71,6 +72,16 @@ def get_glass_types():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+def ensure_serializable(value):
+    """Convert numpy types to native Python types for JSON serialization"""
+    if isinstance(value, (np.integer, np.int64, np.int32)):
+        return int(value)
+    elif isinstance(value, (np.floating, np.float64, np.float32)):
+        return float(value)
+    elif isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
 @app.route('/api/create-curve', methods=['POST'])
 def create_firing_curve():
     """Create firing curve with default parameters (simplified for web)"""
@@ -132,7 +143,7 @@ def create_firing_curve():
         n_astemp = glass_info.get("n_astemp")
         inledande_smaltpunkt = glass_data["Inledande_smaltpunkt"]
         
-        import numpy as np
+        # Convert numpy calculations to regular Python integers
         first_heating_velocity = int(999 if np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time) >= 999 else np.trunc(60*(inledande_smaltpunkt - room_temp)/uppvarmning_time))
         second_heating_velocity = int(999)
         first_cooling_velocity = int(np.trunc(60*(o_astemp - topptemp)/halltider_time))
@@ -207,7 +218,7 @@ def create_firing_curve():
         plot_url = base64.b64encode(img.getvalue()).decode()
         plt.close()
         
-        # Get phase information
+        # Get phase information - ensure all values are JSON serializable
         phases = []
         for i in range(curve._totalPhases):
             phase = curve.findPhase(i)
@@ -219,12 +230,12 @@ def create_firing_curve():
                 color_hex = '#000000'
             
             phases.append({
-                'phase': i + 1,
-                'start_temp': int(phase._startTemp),
-                'end_temp': int(phase._endTemp),
-                'velocity': int(phase._velocity),
-                'holding_time': int(phase._holdingTime),
-                'time': int(phase._time),
+                'phase': ensure_serializable(i + 1),
+                'start_temp': ensure_serializable(phase._startTemp),
+                'end_temp': ensure_serializable(phase._endTemp),
+                'velocity': ensure_serializable(phase._velocity),
+                'holding_time': ensure_serializable(phase._holdingTime),
+                'time': ensure_serializable(phase._time),
                 'color': color_hex
             })
         
@@ -236,10 +247,10 @@ def create_firing_curve():
             'glass_type': glass_info["namn"],
             'firing_type': firing_type,
             'parameters': {
-                'radius': radius,
-                'layers': layers,
-                'minutes': minutes,
-                'room_temp': room_temp,
+                'radius': ensure_serializable(radius),
+                'layers': ensure_serializable(layers),
+                'minutes': ensure_serializable(minutes),
+                'room_temp': ensure_serializable(room_temp),
                 'oven_type': 'toppvärmd' if oven_type == 't' else 'sidovärmd'
             }
         })
